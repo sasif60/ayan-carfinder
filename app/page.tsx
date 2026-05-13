@@ -1,65 +1,374 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
-  return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
+import { useEffect, useRef, useState } from "react";
+import { useStore } from "@/lib/store";
+import type { ChatMessage, Listing } from "@/lib/types";
+
+const SUGGESTIONS = [
+  "Family car with low insurance",
+  "Reliable first car under £8k",
+  "Stylish hatchback in white",
+  "Long-distance commuter, automatic",
+];
+
+export default function ChatPage() {
+  const { postcode, setPostcode, messages, appendMessage, reset } = useStore();
+  const [input, setInput] = useState("");
+  const [postcodeInput, setPostcodeInput] = useState("");
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({
+      top: scrollRef.current.scrollHeight,
+      behavior: "smooth",
+    });
+  }, [messages.length, pending]);
+
+  const send = async (text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed || pending) return;
+
+    const userMessage: ChatMessage = {
+      id: `u-${Date.now()}`,
+      role: "user",
+      text: trimmed,
+    };
+    appendMessage(userMessage);
+    setInput("");
+    setPending(true);
+    setError(null);
+
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          messages: [...messages, userMessage],
+          postcode,
+        }),
+      });
+      const data = await res.json();
+      if (data?.error) {
+        setError(data.error);
+        return;
+      }
+      const assistantMessage: ChatMessage = {
+        id: `a-${Date.now()}`,
+        role: "assistant",
+        text: data.text ?? "",
+        listings: Array.isArray(data.listings)
+          ? data.listings
+          : data.listing
+          ? [data.listing]
+          : [],
+        totalCount: data.totalCount,
+      };
+      appendMessage(assistantMessage);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "network error");
+    } finally {
+      setPending(false);
+    }
+  };
+
+  if (!postcode) {
+    return (
+      <div className="flex flex-col h-screen w-full max-w-[440px] mx-auto bg-bg">
+        <div className="flex-1 flex flex-col justify-center px-6 py-8">
+          <BrandHeader />
+          <h1 className="font-display text-[26px] font-bold leading-tight mt-6 mb-3">
+            Hi, I&apos;m Naya.
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+          <p className="text-muted text-[15px] mb-8">
+            Tell me what you&apos;re after and I&apos;ll search live UK
+            listings — only FCA-authorised dealers, 2018+, under 70k miles,
+            no write-offs.
           </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+          <div className="bg-card border border-border rounded-2xl p-4">
+            <div className="font-display text-[14px] font-semibold mb-1">
+              First, where are you?
+            </div>
+            <p className="text-[12.5px] text-muted mb-3">
+              Helps me factor in distance to dealer.
+            </p>
+            <input
+              value={postcodeInput}
+              onChange={(e) => setPostcodeInput(e.target.value)}
+              placeholder="UK postcode, e.g. M14 5RP"
+              className="w-full bg-bg border border-border rounded-xl px-3.5 py-3 text-[14px] outline-none focus:border-primary uppercase placeholder:text-muted/80 placeholder:normal-case"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && postcodeInput.trim()) {
+                  setPostcode(postcodeInput);
+                }
+              }}
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+            <button
+              onClick={() =>
+                postcodeInput.trim() && setPostcode(postcodeInput)
+              }
+              disabled={!postcodeInput.trim()}
+              className="mt-3 w-full bg-primary text-white font-display font-semibold text-[14px] rounded-xl py-3 disabled:opacity-50"
+            >
+              Start
+            </button>
+          </div>
         </div>
-      </main>
+      </div>
+    );
+  }
+
+  const showSuggestions = messages.length === 0;
+
+  return (
+    <div className="flex flex-col h-screen w-full max-w-[440px] mx-auto bg-bg">
+      <header className="flex items-center justify-between px-4 py-3 border-b border-border bg-bg/90 backdrop-blur z-10">
+        <BrandHeader compact />
+        <button
+          onClick={() => {
+            if (confirm("Start a fresh conversation?")) reset();
+          }}
+          className="text-muted text-[12px] font-medium hover:text-fg"
+        >
+          New chat
+        </button>
+      </header>
+
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 no-scrollbar">
+        {showSuggestions && (
+          <div className="text-center py-8">
+            <h1 className="font-display text-[22px] font-bold leading-tight mb-2">
+              Hi, I&apos;m Naya.
+            </h1>
+            <p className="text-muted text-[13.5px] mb-5 px-2">
+              Tell me what you&apos;re after and I&apos;ll find you something.
+              Try:
+            </p>
+            <div className="flex flex-col gap-2">
+              {SUGGESTIONS.map((s) => (
+                <button
+                  key={s}
+                  onClick={() => send(s)}
+                  className="bg-card border border-border rounded-2xl px-4 py-3 text-[13.5px] text-left hover:border-primary hover:text-primary transition-colors"
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="flex flex-col gap-3">
+          {messages.map((m) => (
+            <Bubble key={m.id} message={m} />
+          ))}
+          {pending && (
+            <div className="self-start max-w-[82%] bg-card border border-border rounded-2xl rounded-bl-md px-4 py-3 text-[14px] text-muted">
+              <ThinkingDots />
+            </div>
+          )}
+          {error && (
+            <div className="self-start text-[12.5px] text-red-700 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+              {error}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="border-t border-border bg-bg/95 backdrop-blur px-3 py-3">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            send(input);
+          }}
+          className="flex gap-2 items-end"
+        >
+          <textarea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder={
+              messages.length === 0
+                ? "Tell me what you're looking for…"
+                : "Reply…"
+            }
+            rows={1}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                send(input);
+              }
+            }}
+            className="flex-1 bg-card border border-border rounded-2xl px-4 py-3 text-[14px] outline-none focus:border-primary resize-none max-h-[120px]"
+          />
+          <button
+            type="submit"
+            disabled={!input.trim() || pending}
+            className="bg-primary text-white rounded-full w-11 h-11 flex items-center justify-center shadow-[0_4px_12px_rgba(17,168,80,0.25)] disabled:opacity-40 flex-shrink-0"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 12h14M13 6l6 6-6 6" />
+            </svg>
+          </button>
+        </form>
+        <div className="flex items-center justify-between mt-1.5 px-2 text-[10.5px] text-muted">
+          <span>📍 {postcode}</span>
+          <button
+            onClick={() => setPostcode("")}
+            className="hover:text-fg"
+          >
+            Change
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BrandHeader({ compact }: { compact?: boolean }) {
+  // Logo is 8869×2489, aspect ratio ~3.56:1
+  const w = compact ? 64 : 88;
+  const h = Math.round(w / 3.563);
+  return (
+    <div className="flex items-center gap-2.5">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/ayan-logo.png"
+        alt="Ayan"
+        width={w}
+        height={h}
+        style={{ width: w, height: h }}
+      />
+      {!compact && (
+        <div className="text-[11px] text-muted border-l border-border pl-2.5 leading-none">
+          Car&nbsp;finder
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Bubble({ message }: { message: ChatMessage }) {
+  if (message.role === "user") {
+    return (
+      <div className="self-end max-w-[82%] bg-primary text-white rounded-2xl rounded-br-md px-4 py-2.5 text-[14px] leading-snug whitespace-pre-wrap">
+        {message.text}
+      </div>
+    );
+  }
+  const listings =
+    message.listings ?? (message.listing ? [message.listing] : []);
+  return (
+    <div className="self-start max-w-[92%] flex flex-col gap-2">
+      {message.text && (
+        <div className="bg-card border border-border rounded-2xl rounded-bl-md px-4 py-3 text-[14px] leading-relaxed whitespace-pre-wrap">
+          {message.text}
+        </div>
+      )}
+      {listings.map((l, i) => (
+        <ListingCard
+          key={l.id ?? i}
+          listing={l}
+          totalCount={message.totalCount}
+          indexLabel={
+            listings.length > 1
+              ? `${i + 1} of ${listings.length}`
+              : message.totalCount && message.totalCount > 1
+              ? `1 of ${message.totalCount.toLocaleString()}`
+              : undefined
+          }
+        />
+      ))}
+    </div>
+  );
+}
+
+function ListingCard({
+  listing,
+  indexLabel,
+}: {
+  listing: Listing;
+  totalCount?: number;
+  indexLabel?: string;
+}) {
+  const photo = listing.photos[0];
+  return (
+    <div className="bg-card border border-border rounded-2xl overflow-hidden">
+      <div
+        className="aspect-[16/10] bg-soft bg-center bg-cover relative"
+        style={photo ? { backgroundImage: `url(${photo})` } : undefined}
+      >
+        {indexLabel && (
+          <div className="absolute top-2 left-2 bg-black/65 text-white text-[10.5px] font-semibold px-2 py-1 rounded-full">
+            {indexLabel}
+          </div>
+        )}
+        {listing.dealer.fcaStatus && (
+          <div className="absolute top-2 right-2 bg-[rgba(17,168,80,0.9)] text-white text-[10.5px] font-semibold px-2 py-1 rounded-full">
+            FCA
+          </div>
+        )}
+      </div>
+      <div className="p-3">
+        <div className="font-display text-[14px] font-bold leading-tight">
+          {listing.heading}
+        </div>
+        <div className="flex items-baseline justify-between mt-1.5">
+          <div className="font-display text-[18px] font-bold">
+            £{listing.price.toLocaleString()}
+          </div>
+          <div className="text-[11px] text-muted">
+            {listing.year} · {listing.miles.toLocaleString()} mi
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-1 mt-2">
+          {listing.transmission && <Tag>{listing.transmission}</Tag>}
+          {listing.fuel && <Tag>{listing.fuel}</Tag>}
+          {listing.insuranceGroup && (
+            <Tag tone="green">Ins. group {listing.insuranceGroup}</Tag>
+          )}
+          {listing.colour && <Tag>{listing.colour}</Tag>}
+          {listing.ownerCount === 1 && <Tag tone="green">1 owner</Tag>}
+        </div>
+        <div className="text-[11px] text-muted mt-2 flex items-center gap-1">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 2C8 2 5 5 5 9c0 5 7 13 7 13s7-8 7-13c0-4-3-7-7-7z" />
+            <circle cx="12" cy="9" r="2" />
+          </svg>
+          {listing.dealer.name}
+          {listing.dealer.city ? ` · ${listing.dealer.city}` : ""}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Tag({
+  children,
+  tone,
+}: {
+  children: React.ReactNode;
+  tone?: "green" | "amber";
+}) {
+  const cls =
+    tone === "green"
+      ? "bg-[rgba(17,168,80,0.1)] text-[#0a7a3a]"
+      : tone === "amber"
+      ? "bg-[rgba(199,139,43,0.12)] text-[#7a5a1a]"
+      : "bg-soft text-fg";
+  return (
+    <span className={`text-[10.5px] px-2 py-0.5 rounded-full font-medium ${cls}`}>
+      {children}
+    </span>
+  );
+}
+
+function ThinkingDots() {
+  return (
+    <div className="flex gap-1">
+      <div className="w-1.5 h-1.5 rounded-full bg-muted animate-bounce" style={{ animationDelay: "0ms" }} />
+      <div className="w-1.5 h-1.5 rounded-full bg-muted animate-bounce" style={{ animationDelay: "150ms" }} />
+      <div className="w-1.5 h-1.5 rounded-full bg-muted animate-bounce" style={{ animationDelay: "300ms" }} />
     </div>
   );
 }
