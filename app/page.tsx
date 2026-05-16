@@ -81,12 +81,7 @@ export default function ChatPage() {
           <h1 className="font-display text-[26px] font-bold leading-tight mt-6 mb-3">
             Hi, I&apos;m Naya.
           </h1>
-          <p className="text-muted text-[15px] mb-8">
-            Tell me what you&apos;re after and I&apos;ll search live UK
-            listings — only FCA-authorised dealers, 2018+, under 70k miles,
-            no write-offs.
-          </p>
-          <div className="bg-card border border-border rounded-2xl p-4">
+          <div className="bg-card border border-border rounded-2xl p-4 mt-8">
             <div className="font-display text-[14px] font-semibold mb-1">
               First, where are you?
             </div>
