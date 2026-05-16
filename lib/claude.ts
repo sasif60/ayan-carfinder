@@ -582,7 +582,13 @@ const SYSTEM_PROMPT = `You are Naya, Ayan's car-finding assistant. You're warm, 
 ${HARD_RULES_TEXT}
 
 CONVERSATIONAL FLOW — IMPORTANT:
-On your VERY FIRST reply in a conversation, briefly acknowledge the brief with a touch of warmth before asking the first follow-up — something like "Nice — let's get you sorted." or "Family car with low insurance, good shout." Don't introduce yourself by name on every reply, only the first if it fits naturally.
+By the time you receive the customer's first message, they've already given you their postcode, max monthly payment and APR via the gate screen — so you ALREADY know what they can afford (CUSTOMER CONTEXT is appended to your system prompt). Do NOT greet them with a generic "Hi I'm Naya" or recap what they can spend — skip the small talk and get to work.
+
+On your VERY FIRST reply, react to the actual brief in one short sentence — react to what they said, not to the fact they said something. Examples:
+- "Nice — let's get you sorted."
+- "Family hauler — good shout."
+- "Cool car for the weekend, I like it."
+Then ask the first follow-up. Never start with "Hi" or "Hello" or "Welcome". Never introduce yourself by name.
 
 Before showing a car on the first request, ask 2-3 quick follow-up questions (one per turn — never bundle questions into a single message). Pick the questions whose answers will most shape the shortlist for THIS brief, in roughly this order, skipping any already implied by the brief:
 
@@ -616,9 +622,24 @@ INTERPRETATION HINTS:
 - "Local" / "near me" / "close" → radiusMiles 30. "Within X miles" → that number. "Anywhere" → omit radiusMiles.
 - "Cheap to run" → low insurance + diesel/hybrid + small engine.
 
-SENSIBLE DEFAULTS (apply silently — do NOT ask):
-- If the customer hasn't signalled a budget, cap searches at priceMax £25,000.
-- Never volunteer a budget question. If the picked car is at the top of the default range, mention it gracefully ("this is around the top end at £24k — happy to find something cheaper").
+AFFORDABILITY (very important — drives EVERY search):
+- The customer's purchase-price ceiling is the maxPrice value in CUSTOMER CONTEXT. Pass it as priceMax to EVERY search_cars call. Treat it as a hard limit by default.
+- Do NOT ask about budget. Do NOT recap the monthly figure unprompted. The customer already knows what they can afford — only mention it if the customer brings it up, or if a pick is right at the top of the range.
+
+When showing a car priced just under maxPrice:
+- No need to flag it specifically. It's affordable. Just present it.
+
+When the customer asks for something cheaper:
+- Re-search with a lower priceMax (e.g. 0.7 × maxPrice) and frame it as "lower monthly outlay" rather than just "cheaper" — that's the lever they actually care about.
+
+When the customer asks for something MORE expensive (or names a specific car above maxPrice):
+- Search WITHOUT the ceiling (set priceMax to the higher figure or omit it).
+- In your reply, name the car, give its price, then state the gap clearly: "That's £X over your monthly cap — you'd need to put about £Y down up front to keep monthly at £Z." Compute the gap as (listing price − maxPrice). Don't fudge it.
+- Keep the tone matter-of-fact, not preachy.
+
+At a relevant moment in the conversation (after they've seen 2-3 cars at the top of their range, or if they seem indifferent to the pick), feel free to ask once: "Want me to look at a lower monthly, or stretch a bit higher?" Don't ask this on every turn.
+
+If the customer didn't fill the gate (no maxPrice in context — e.g. legacy session), fall back to a £25,000 priceMax cap.
 
 PICKER GUIDE — SOURCE OF TRUTH FOR PICKS:
 Below is Ayan's curated picker guide. Use it as your PRIMARY source for matching a customer profile to specific make + model + year combos. Don't invent picks from general knowledge — find them in the guide first.
@@ -672,6 +693,9 @@ function chatToApiMessages(
 export async function chat(input: {
   messages: ChatMessage[];
   postcode?: string;
+  monthly?: number;
+  apr?: number;
+  maxPrice?: number;
 }): Promise<ChatResult> {
   const apiMessages = chatToApiMessages(input.messages);
   const alreadyShown = new Set<string>();
@@ -683,6 +707,21 @@ export async function chat(input: {
   let lastListings: Listing[] = [];
   let lastTotalCount: number | undefined;
 
+  const customerContextLines: string[] = [];
+  if (input.postcode) customerContextLines.push(`Postcode: ${input.postcode}`);
+  if (input.monthly !== undefined)
+    customerContextLines.push(`Max monthly payment: £${input.monthly}`);
+  if (input.apr !== undefined)
+    customerContextLines.push(`APR: ${input.apr}%`);
+  if (input.maxPrice !== undefined)
+    customerContextLines.push(
+      `Affordable purchase price (60-month max term): £${input.maxPrice}`
+    );
+
+  const customerContext = customerContextLines.length
+    ? `\n\nCUSTOMER CONTEXT (use silently — don't ask for any of this again):\n${customerContextLines.join("\n")}\n\nPass priceMax=${input.maxPrice ?? "(none)"} to search_cars by default. Only exceed it if the customer explicitly asks for something pricier — then mention the up-front gap.`
+    : "";
+
   let response = await client.messages.create({
     model: MODEL,
     max_tokens: 600,
@@ -692,6 +731,9 @@ export async function chat(input: {
         text: SYSTEM_PROMPT,
         cache_control: { type: "ephemeral" as const },
       },
+      ...(customerContext
+        ? [{ type: "text" as const, text: customerContext }]
+        : []),
     ],
     tools: [SEARCH_CARS_TOOL],
     messages: apiMessages,
@@ -794,6 +836,9 @@ export async function chat(input: {
           text: SYSTEM_PROMPT,
           cache_control: { type: "ephemeral" as const },
         },
+        ...(customerContext
+          ? [{ type: "text" as const, text: customerContext }]
+          : []),
       ],
       tools: [SEARCH_CARS_TOOL],
       messages: apiMessages,

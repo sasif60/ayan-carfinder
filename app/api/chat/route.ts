@@ -9,12 +9,18 @@ export async function POST(req: Request) {
       ? body.messages
       : [];
     const postcode: string | undefined = body?.postcode;
+    const monthly: number | undefined =
+      typeof body?.monthly === "number" ? body.monthly : undefined;
+    const apr: number | undefined =
+      typeof body?.apr === "number" ? body.apr : undefined;
+    const maxPrice: number | undefined =
+      typeof body?.maxPrice === "number" ? body.maxPrice : undefined;
 
     if (messages.length === 0) {
       return NextResponse.json({ error: "messages required" }, { status: 400 });
     }
 
-    const result = await chat({ messages, postcode });
+    const result = await chat({ messages, postcode, monthly, apr, maxPrice });
     return NextResponse.json(result);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "unknown error";

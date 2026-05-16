@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "@/lib/store";
+import { computeMaxPrice } from "@/lib/finance";
 import type { ChatMessage, Listing } from "@/lib/types";
 
 const SUGGESTIONS = [
@@ -12,12 +13,46 @@ const SUGGESTIONS = [
 ];
 
 export default function ChatPage() {
-  const { postcode, setPostcode, messages, appendMessage, reset } = useStore();
+  const {
+    postcode,
+    setPostcode,
+    monthly,
+    apr,
+    maxPrice,
+    setAffordability,
+    messages,
+    appendMessage,
+    reset,
+  } = useStore();
   const [input, setInput] = useState("");
   const [postcodeInput, setPostcodeInput] = useState("");
+  const [monthlyInput, setMonthlyInput] = useState("");
+  const [aprInput, setAprInput] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+
+  const previewMaxPrice = useMemo(() => {
+    const m = parseFloat(monthlyInput);
+    const a = parseFloat(aprInput);
+    if (!Number.isFinite(m) || m <= 0 || !Number.isFinite(a) || a < 0) return null;
+    return computeMaxPrice({ monthly: m, apr: a, termMonths: 60 });
+  }, [monthlyInput, aprInput]);
+
+  const gateReady = !!(
+    postcodeInput.trim() &&
+    parseFloat(monthlyInput) > 0 &&
+    parseFloat(aprInput) >= 0 &&
+    previewMaxPrice
+  );
+
+  const submitGate = () => {
+    if (!gateReady || !previewMaxPrice) return;
+    const m = parseFloat(monthlyInput);
+    const a = parseFloat(aprInput);
+    setPostcode(postcodeInput);
+    setAffordability({ monthly: m, apr: a, maxPrice: previewMaxPrice });
+  };
 
   useEffect(() => {
     scrollRef.current?.scrollTo({
@@ -47,6 +82,9 @@ export default function ChatPage() {
         body: JSON.stringify({
           messages: [...messages, userMessage],
           postcode,
+          monthly,
+          apr,
+          maxPrice,
         }),
       });
       const data = await res.json();
@@ -73,42 +111,94 @@ export default function ChatPage() {
     }
   };
 
-  if (!postcode) {
+  if (!postcode || !maxPrice) {
     return (
-      <div className="flex flex-col h-screen w-full max-w-[440px] mx-auto bg-bg">
+      <div className="flex flex-col h-screen w-full max-w-[440px] mx-auto bg-bg overflow-y-auto">
         <div className="flex-1 flex flex-col justify-center px-6 py-8">
           <BrandHeader />
-          <h1 className="font-display text-[26px] font-bold leading-tight mt-6 mb-3">
+          <h1 className="font-display text-[26px] font-bold leading-tight mt-6 mb-1">
             Hi, I&apos;m Naya.
           </h1>
-          <div className="bg-card border border-border rounded-2xl p-4 mt-8">
-            <div className="font-display text-[14px] font-semibold mb-1">
-              First, where are you?
-            </div>
-            <p className="text-[12.5px] text-muted mb-3">
-              Helps me factor in distance to dealer.
-            </p>
-            <input
-              value={postcodeInput}
-              onChange={(e) => setPostcodeInput(e.target.value)}
-              placeholder="UK postcode, e.g. M14 5RP"
-              className="w-full bg-bg border border-border rounded-xl px-3.5 py-3 text-[14px] outline-none focus:border-primary uppercase placeholder:text-muted/80 placeholder:normal-case"
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && postcodeInput.trim()) {
-                  setPostcode(postcodeInput);
-                }
-              }}
-            />
+          <p className="text-muted text-[14px] mb-6">
+            A couple of quick details and I&apos;ll find you a car.
+          </p>
+
+          <div className="bg-card border border-border rounded-2xl p-4 flex flex-col gap-4">
+            <Field
+              label="Postcode"
+              hint="So I can sort by distance to dealer."
+            >
+              <input
+                value={postcodeInput}
+                onChange={(e) => setPostcodeInput(e.target.value)}
+                placeholder="e.g. M14 5RP"
+                className="w-full bg-bg border border-border rounded-xl px-3.5 py-3 text-[14px] outline-none focus:border-primary uppercase placeholder:text-muted/80 placeholder:normal-case"
+              />
+            </Field>
+
+            <Field
+              label="Max monthly payment"
+              hint="The most you can comfortably pay each month."
+            >
+              <div className="relative">
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted text-[14px]">
+                  £
+                </span>
+                <input
+                  inputMode="decimal"
+                  value={monthlyInput}
+                  onChange={(e) =>
+                    setMonthlyInput(e.target.value.replace(/[^0-9.]/g, ""))
+                  }
+                  placeholder="e.g. 250"
+                  className="w-full bg-bg border border-border rounded-xl pl-7 pr-3.5 py-3 text-[14px] outline-none focus:border-primary placeholder:text-muted/80"
+                />
+              </div>
+            </Field>
+
+            <Field
+              label="APR"
+              hint="The rate you were quoted (we assume a 60-month max term)."
+            >
+              <div className="relative">
+                <input
+                  inputMode="decimal"
+                  value={aprInput}
+                  onChange={(e) =>
+                    setAprInput(e.target.value.replace(/[^0-9.]/g, ""))
+                  }
+                  placeholder="e.g. 12.3"
+                  className="w-full bg-bg border border-border rounded-xl px-3.5 pr-9 py-3 text-[14px] outline-none focus:border-primary placeholder:text-muted/80"
+                />
+                <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted text-[14px]">
+                  %
+                </span>
+              </div>
+            </Field>
+
+            {previewMaxPrice && (
+              <div className="rounded-xl bg-[rgba(17,168,80,0.08)] border border-[rgba(17,168,80,0.2)] px-3.5 py-2.5 text-[12.5px]">
+                That gives you a target purchase price of around{" "}
+                <span className="font-display font-bold">
+                  £{previewMaxPrice.toLocaleString()}
+                </span>{" "}
+                over 60 months.
+              </div>
+            )}
+
             <button
-              onClick={() =>
-                postcodeInput.trim() && setPostcode(postcodeInput)
-              }
-              disabled={!postcodeInput.trim()}
-              className="mt-3 w-full bg-primary text-white font-display font-semibold text-[14px] rounded-xl py-3 disabled:opacity-50"
+              onClick={submitGate}
+              disabled={!gateReady}
+              className="bg-primary text-white font-display font-semibold text-[14px] rounded-xl py-3 disabled:opacity-50"
             >
               Start
             </button>
           </div>
+
+          <p className="text-[11px] text-muted mt-4 text-center px-2 leading-relaxed">
+            We&apos;ll show cars you can afford on your monthly. If you want
+            something pricier, I&apos;ll flag it and you cover the gap up front.
+          </p>
         </div>
       </div>
     );
@@ -135,10 +225,13 @@ export default function ChatPage() {
           {showSuggestions && (
             <div className="self-start max-w-[92%] bg-card border border-border rounded-2xl rounded-bl-md px-4 py-3 text-[14px] leading-relaxed">
               <div className="font-display text-[13px] font-semibold mb-1">Naya</div>
-              Hi 👋 I&apos;m Naya, Ayan&apos;s car-finding assistant. Just tell me
-              what you&apos;re after — anything from <em>&ldquo;family SUV
-              under £15k&rdquo;</em> to <em>&ldquo;something fun&rdquo;</em> —
-              and I&apos;ll find you a car from live UK listings.
+              Got your budget covered — up to{" "}
+              <span className="font-display font-bold">
+                £{maxPrice?.toLocaleString()}
+              </span>{" "}
+              at <span className="font-display font-bold">
+                £{monthly}/month
+              </span>. What kind of car are you after?
             </div>
           )}
 
@@ -207,15 +300,49 @@ export default function ChatPage() {
           </button>
         </form>
         <div className="flex items-center justify-between mt-1.5 px-2 text-[10.5px] text-muted">
-          <span>📍 {postcode}</span>
+          <span>
+            📍 {postcode}
+            {maxPrice && (
+              <span className="ml-2">
+                · £{maxPrice.toLocaleString()} · £{monthly}/mo
+              </span>
+            )}
+          </span>
           <button
-            onClick={() => setPostcode("")}
+            onClick={() => {
+              setPostcode("");
+              useStore.getState().setAffordability({
+                monthly: 0,
+                apr: 0,
+                maxPrice: 0,
+              });
+            }}
             className="hover:text-fg"
           >
             Change
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function Field({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <div className="font-display text-[13px] font-semibold mb-0.5">
+        {label}
+      </div>
+      {hint && <p className="text-[11.5px] text-muted mb-2">{hint}</p>}
+      {children}
     </div>
   );
 }
