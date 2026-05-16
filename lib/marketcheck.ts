@@ -116,6 +116,7 @@ type RawListing = {
   num_owners?: number;
   owner_count?: number;
   insurance_group?: string;
+  vdp_url?: string;
   media?: { photo_links?: string[]; photo_links_cached?: string[] };
   build?: {
     year?: number;
@@ -136,6 +137,8 @@ type RawListing = {
     postal_code?: string;
     fca_status?: string;
     dealer_type?: string;
+    phone?: string;
+    website?: string;
   };
 };
 
@@ -163,6 +166,7 @@ function normalize(raw: RawListing): Listing {
     insuranceGroup: raw.insurance_group,
     price: Number(raw.price ?? 0),
     photos,
+    vdpUrl: raw.vdp_url,
     dealer: {
       id: dealer.id !== undefined ? String(dealer.id) : undefined,
       name: dealer.name ?? "Dealer",
@@ -170,6 +174,8 @@ function normalize(raw: RawListing): Listing {
       postcode: dealer.postal_code,
       fcaStatus: dealer.fca_status ?? "Authorised",
       type: dealer.dealer_type,
+      phone: dealer.phone,
+      website: dealer.website,
     },
     raw,
   };
@@ -209,13 +215,16 @@ export async function searchOne(input: SearchInput): Promise<{
 
 export async function searchN(
   input: SearchInput,
-  n: number
+  n: number,
+  excludeIds: Set<string> = new Set()
 ): Promise<{ listings: Listing[]; totalCount: number }> {
-  const rows = Math.max(1, Math.min(5, Math.round(n)));
+  const want = Math.max(1, Math.min(5, Math.round(n)));
+  const fetchRows = Math.min(20, want + excludeIds.size);
   const { count, listings } = await fetchSearch({
     ...input,
-    rows,
+    rows: fetchRows,
     sortBy: input.sortBy ?? "best_match",
   });
-  return { listings: listings.slice(0, rows), totalCount: count };
+  const filtered = listings.filter((l) => !excludeIds.has(l.id));
+  return { listings: filtered.slice(0, want), totalCount: count };
 }

@@ -136,30 +136,17 @@ export default function ChatPage() {
       </header>
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 no-scrollbar">
-        {showSuggestions && (
-          <div className="text-center py-8">
-            <h1 className="font-display text-[22px] font-bold leading-tight mb-2">
-              Hi, I&apos;m Naya.
-            </h1>
-            <p className="text-muted text-[13.5px] mb-5 px-2">
-              Tell me what you&apos;re after and I&apos;ll find you something.
-              Try:
-            </p>
-            <div className="flex flex-col gap-2">
-              {SUGGESTIONS.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => send(s)}
-                  className="bg-card border border-border rounded-2xl px-4 py-3 text-[13.5px] text-left hover:border-primary hover:text-primary transition-colors"
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
         <div className="flex flex-col gap-3">
+          {showSuggestions && (
+            <div className="self-start max-w-[92%] bg-card border border-border rounded-2xl rounded-bl-md px-4 py-3 text-[14px] leading-relaxed">
+              <div className="font-display text-[13px] font-semibold mb-1">Naya</div>
+              Hi 👋 I&apos;m Naya, Ayan&apos;s car-finding assistant. Just tell me
+              what you&apos;re after — anything from <em>&ldquo;family SUV
+              under £15k&rdquo;</em> to <em>&ldquo;something fun&rdquo;</em> —
+              and I&apos;ll find you a car from live UK listings.
+            </div>
+          )}
+
           {messages.map((m) => (
             <Bubble key={m.id} message={m} />
           ))}
@@ -177,6 +164,19 @@ export default function ChatPage() {
       </div>
 
       <div className="border-t border-border bg-bg/95 backdrop-blur px-3 py-3">
+        {showSuggestions && (
+          <div className="flex gap-1.5 overflow-x-auto pb-2 no-scrollbar -mx-1 px-1">
+            {SUGGESTIONS.map((s) => (
+              <button
+                key={s}
+                onClick={() => send(s)}
+                className="flex-shrink-0 bg-card border border-border rounded-full px-3 py-1.5 text-[12px] text-muted hover:text-primary hover:border-primary whitespace-nowrap transition-colors"
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        )}
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -303,11 +303,6 @@ function ListingCard({
             {indexLabel}
           </div>
         )}
-        {listing.dealer.fcaStatus && (
-          <div className="absolute top-2 right-2 bg-[rgba(17,168,80,0.9)] text-white text-[10.5px] font-semibold px-2 py-1 rounded-full">
-            FCA
-          </div>
-        )}
       </div>
       <div className="p-3">
         <div className="font-display text-[14px] font-bold leading-tight">
@@ -338,6 +333,37 @@ function ListingCard({
           {listing.dealer.name}
           {listing.dealer.city ? ` · ${listing.dealer.city}` : ""}
         </div>
+
+        {(listing.dealer.phone || listing.vdpUrl || listing.dealer.website) && (
+          <div className="mt-3 pt-3 border-t border-border flex flex-col gap-1.5">
+            {listing.dealer.phone && (
+              <a
+                href={`tel:${listing.dealer.phone.replace(/\s+/g, "")}`}
+                className="flex items-center gap-2 text-[12.5px] font-medium text-primary hover:underline"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+                </svg>
+                Call dealer · {listing.dealer.phone}
+              </a>
+            )}
+            {(listing.vdpUrl || listing.dealer.website) && (
+              <a
+                href={listing.vdpUrl ?? listing.dealer.website}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 text-[12.5px] font-medium text-fg hover:text-primary hover:underline"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                  <polyline points="15 3 21 3 21 9"/>
+                  <line x1="10" y1="14" x2="21" y2="3"/>
+                </svg>
+                {listing.vdpUrl ? "View on dealer site" : "Dealer website"}
+              </a>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -15,6 +15,7 @@ export type Listing = {
   insuranceGroup?: string;
   price: number;
   photos: string[];
+  vdpUrl?: string;
   dealer: {
     id?: string;
     name: string;
@@ -22,6 +23,8 @@ export type Listing = {
     postcode?: string;
     fcaStatus?: string;
     type?: string;
+    phone?: string;
+    website?: string;
   };
   raw?: unknown;
 };
