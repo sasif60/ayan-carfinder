@@ -22,8 +22,10 @@ export default function ChatPage() {
     setAffordability,
     messages,
     appendMessage,
+    saved,
     reset,
   } = useStore();
+  const [view, setView] = useState<"chat" | "saved">("chat");
   const [input, setInput] = useState("");
   const [postcodeInput, setPostcodeInput] = useState("");
   const [monthlyInput, setMonthlyInput] = useState("");
@@ -210,17 +212,49 @@ export default function ChatPage() {
     <div className="flex flex-col h-screen w-full max-w-[440px] mx-auto bg-bg">
       <header className="flex items-center justify-between px-4 py-3 border-b border-border bg-bg/90 backdrop-blur z-10">
         <BrandHeader compact />
-        <button
-          onClick={() => {
-            if (confirm("Start a fresh conversation?")) reset();
-          }}
-          className="text-muted text-[12px] font-medium hover:text-fg"
-        >
-          New chat
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setView((v) => (v === "saved" ? "chat" : "saved"))}
+            className={
+              "flex items-center gap-1 text-[12px] font-medium px-2.5 py-1 rounded-full border transition-colors " +
+              (view === "saved"
+                ? "bg-primary text-white border-primary"
+                : "text-fg border-border hover:border-primary hover:text-primary")
+            }
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill={view === "saved" ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20.8 4.6a5.5 5.5 0 00-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 00-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 000-7.8z" />
+            </svg>
+            {view === "saved" ? "Back to chat" : `Saved${saved.length ? ` (${saved.length})` : ""}`}
+          </button>
+          {view === "chat" && (
+            <button
+              onClick={() => {
+                if (confirm("Start a fresh conversation?")) reset();
+              }}
+              className="text-muted text-[12px] font-medium hover:text-fg"
+            >
+              New chat
+            </button>
+          )}
+        </div>
       </header>
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 no-scrollbar">
+        {view === "saved" ? (
+          <div className="flex flex-col gap-3">
+            <div className="font-display text-[18px] font-bold mt-1 mb-1">
+              Your saved cars
+            </div>
+            {saved.length === 0 ? (
+              <p className="text-[13px] text-muted">
+                Tap the heart on any car to save it here for later.
+              </p>
+            ) : (
+              saved.map((l) => <ListingCard key={l.id} listing={l} />)
+            )}
+          </div>
+        ) : (
         <div className="flex flex-col gap-3">
           {showSuggestions && (
             <div className="self-start max-w-[92%] bg-card border border-border rounded-2xl rounded-bl-md px-4 py-3 text-[14px] leading-relaxed">
@@ -249,6 +283,7 @@ export default function ChatPage() {
             </div>
           )}
         </div>
+        )}
       </div>
 
       <div className="border-t border-border bg-bg/95 backdrop-blur px-3 py-3">
@@ -414,6 +449,8 @@ function ListingCard({
   indexLabel?: string;
 }) {
   const photo = listing.photos[0];
+  const saved = useStore((s) => s.saved.some((x) => x.id === listing.id));
+  const toggleSave = useStore((s) => s.toggleSave);
   return (
     <div className="bg-card border border-border rounded-2xl overflow-hidden">
       <div
@@ -425,6 +462,20 @@ function ListingCard({
             {indexLabel}
           </div>
         )}
+        <button
+          onClick={() => toggleSave(listing)}
+          aria-label={saved ? "Remove from saved" : "Save this car"}
+          className={
+            "absolute top-2 right-2 w-9 h-9 rounded-full flex items-center justify-center backdrop-blur transition-colors " +
+            (saved
+              ? "bg-primary text-white shadow-[0_4px_12px_rgba(17,168,80,0.35)]"
+              : "bg-white/90 text-fg hover:bg-white")
+          }
+        >
+          <svg width="17" height="17" viewBox="0 0 24 24" fill={saved ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M20.8 4.6a5.5 5.5 0 00-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 00-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 000-7.8z" />
+          </svg>
+        </button>
       </div>
       <div className="p-3">
         <div className="font-display text-[14px] font-bold leading-tight">
