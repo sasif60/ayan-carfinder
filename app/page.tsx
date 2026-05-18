@@ -448,15 +448,54 @@ function ListingCard({
   totalCount?: number;
   indexLabel?: string;
 }) {
-  const photo = listing.photos[0];
+  const photos = listing.photos;
   const saved = useStore((s) => s.saved.some((x) => x.id === listing.id));
   const toggleSave = useStore((s) => s.toggleSave);
+  const [photoIdx, setPhotoIdx] = useState(0);
+  const [photoFailed, setPhotoFailed] = useState(false);
+  const currentPhoto = photos[photoIdx];
+  const handlePhotoError = () => {
+    if (photoIdx < photos.length - 1) {
+      // try the next photo in the dealer's set
+      setPhotoIdx((i) => i + 1);
+    } else {
+      setPhotoFailed(true);
+    }
+  };
   return (
     <div className="bg-card border border-border rounded-2xl overflow-hidden">
-      <div
-        className="aspect-[16/10] bg-soft bg-center bg-cover relative"
-        style={photo ? { backgroundImage: `url(${photo})` } : undefined}
-      >
+      <div className="aspect-[16/10] bg-soft relative overflow-hidden">
+        {currentPhoto && !photoFailed ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            key={currentPhoto}
+            src={currentPhoto}
+            alt={listing.heading}
+            loading="lazy"
+            referrerPolicy="no-referrer"
+            onError={handlePhotoError}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <div className="w-full h-full flex flex-col items-center justify-center text-muted text-[12px] gap-1 px-3 text-center">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="5" width="18" height="14" rx="2" />
+              <circle cx="9" cy="11" r="1.5" />
+              <path d="M3 17l5-5 4 4 3-3 6 6" />
+            </svg>
+            <span>Photo unavailable</span>
+            {listing.vdpUrl && (
+              <a
+                href={listing.vdpUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary underline-offset-2 hover:underline text-[11.5px]"
+              >
+                See it on the dealer site
+              </a>
+            )}
+          </div>
+        )}
         {indexLabel && (
           <div className="absolute top-2 left-2 bg-black/65 text-white text-[10.5px] font-semibold px-2 py-1 rounded-full">
             {indexLabel}
